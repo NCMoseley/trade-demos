@@ -10,7 +10,9 @@ h1{font-size:26px;font-weight:800;letter-spacing:-.02em}
 .panel{background:#11151f;border:1px solid #1e2534;border-radius:14px;padding:20px;margin-bottom:18px}
 .controls{display:flex;gap:18px;flex-wrap:wrap;align-items:end}
 .field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#8b93a7;margin-bottom:6px}
-select,input[type=number]{background:#0b0e14;border:1px solid #2a3348;color:#e8eaf0;border-radius:8px;padding:8px 10px;font-family:inherit;font-size:13px}
+select,input[type=number],input[type=date]{background:#0b0e14;border:1px solid #2a3348;color:#e8eaf0;border-radius:8px;padding:8px 10px;font-family:inherit;font-size:13px;color-scheme:dark}
+select:focus,input[type=number]:focus,input[type=date]:focus{outline:none;border-color:#3b82f6}
+select:hover,input[type=date]:hover{border-color:#3d4a66;cursor:pointer}
 button{background:#3b82f6;color:#fff;border:0;border-radius:8px;padding:9px 18px;font-weight:600;font-size:13px;cursor:pointer}
 button:hover{background:#2f6fe0}
 .checks{display:flex;gap:14px}
@@ -48,13 +50,12 @@ h2{font-size:14px;font-weight:700;margin-bottom:12px}
 <div class="field"><label>Funded</label><div class="checks"><input id="cq" type="number" min="1" max="70" value="2" style="width:56px"><select id="funit" style="padding:8px 6px"><option value="1">minis</option><option value="10">micros</option></select></div></div>
 <div class="field"><label>Signals</label><div class="checks"><label><input id="d2b" type="checkbox" checked> FAST</label><label><input id="al" type="checkbox" checked> SMOOTH</label></div></div>
 <div class="field"><label>Reinvest payouts</label><div class="checks"><label><input id="ri" type="checkbox"> buy more accounts</label></div></div>
-<div class="field"><label>Data from</label><select id="since"><option value="2024-11">Nov-2024</option><option value="2024-01">Jan-2024</option><option value="2023-01">2023</option><option value="2022-01">2022</option><option value="2020-01">All (2020)</option></select></div>
 </div>
 <div id="rules" class="rules"></div>
 <details style="margin-top:14px"><summary style="cursor:pointer;font-size:12px;color:#8b93a7;font-weight:600"><span id="prodname"></span> — modeled rules, review assumptions</summary><div id="prodlinks" style="margin:10px 0 0;font-size:12px"></div><ul id="fullrules" style="font-size:12px;color:#8b93a7;line-height:1.7;margin-top:10px;padding-left:18px"></ul></details>
 </div>
 
-<div class="panel"><div class="cards" id="cards"></div></div>
+<div class="panel"><div class="controls" style="margin-bottom:16px"><div class="field"><label>Data from</label><div class="checks"><input id="since" type="date" value="2024-11-01" min="2020-01-01" max="2026-11-19"><button type="button" onclick="worstStart()" style="padding:8px 10px;font-size:12px">Start on worst day</button></div></div></div><div class="cards" id="cards"></div></div>
 <div class="panel"><h2>Cumulative net cash (payouts &minus; costs)</h2><canvas id="eq" height="300"></canvas></div>
 <div class="panel"><h2>Event log</h2><div class="scroll"><table id="log"></table></div></div>
 <div class="panel"><h2>Monthly net</h2><div class="scroll"><table id="mtbl"></table></div></div>
@@ -85,6 +86,20 @@ function dayTrades(row,useD,useA){
  for(const t of L){if(t[2]<openUntil)continue;openUntil=t[3];out.push(t);}
  return out;
 }
+function worstStart(){
+ const f=FIRMS[document.getElementById('firm').value];
+ const unit=f.instant?+document.getElementById('funit').value:+document.getElementById('eunit').value;
+ const cq=(f.instant?+document.getElementById('cq').value:f.evalCq*unit)||1;
+ const tv=5/unit,cm=unit===10?1.5:4;
+ const useD=document.getElementById('d2b').checked,useA=document.getElementById('al').checked;
+ let worst=null,wv=0;
+ for(const d of Object.keys(DATA.days)){
+  let p=0;const row=DATA.days[d];
+  for(const[n,r,e,c]of dayTrades(row,useD,useA))p+=trade$(r,DATA.sl[n],cq,tv,cm);
+  if(p<wv){wv=p;worst=d;}
+ }
+ if(worst){document.getElementById('since').value=worst;run();}
+}
 function newAcct(f){return{mode:f.instant?'funded':'eval',eq:0,peak:0,bestDay:0,daysTraded:0,green200:0,lastPay:-999,periodBest:0,fundDays:0,profSincePay:0,bestDayF:0,payThreshold:9000}}
 function run(){
  const f=FIRMS[document.getElementById('firm').value];
@@ -104,7 +119,7 @@ function run(){
  const ef=document.getElementById('evalfield');
  ef.style.opacity=f.instant?0.35:1;
  ef.querySelectorAll('input,select').forEach(e=>e.disabled=!!f.instant);
- const days=Object.keys(DATA.days).filter(d=>d.slice(0,7)>=since).sort();
+ const days=Object.keys(DATA.days).filter(d=>d>=since).sort();
  const buyCost=f.instant?f.act:f.evalCost;
  let costs=buyCost,oop=buyCost,cash=0,payouts=0,evals=f.instant?0:1,passes=0,breaches=0,maxAccts=1;
  let acctN=0;function mkAcct(){const a=newAcct(f);a.id=++acctN;return a}
