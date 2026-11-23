@@ -4,7 +4,7 @@ Interactive, self-contained HTML simulators for trading-strategy evaluation. Eac
 
 ## Demos
 
-`index.html`
+`index.html` (landing) + `live.html` + `prop.html`
 
 Paired MNQ intraday signals replayed on a live account.
 
