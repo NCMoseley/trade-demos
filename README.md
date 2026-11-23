@@ -4,11 +4,11 @@ Interactive, self-contained HTML simulators for trading-strategy evaluation. Eac
 
 ## Demos
 
-### `damn2b-aleph-live.html`
+`index.html`
 
 Paired MNQ intraday signals replayed on a live account.
 
-- **Signals:** DAMN2B (TP 101t / SL 67t, ~2 trades/day) + ALEPH (TP 180t / SL 40t, ~1 trade/day)
+- **Signals:** FAST/DAMN2B (TP 101t / SL 67t, ~2 trades/day) + SMOOTH/ALEPH (TP 180t / SL 40t, ~1 trade/day)
 - **Sizing:** configurable % risk per entry, micros-granular
 - **Frictions:** 4 ticks slippage + $4 round-turn commission per trade
 - **Data:** recorded backtest daily outcomes, replayed in sequence (Nov-2024 → Nov-2026)
