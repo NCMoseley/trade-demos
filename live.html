@@ -44,17 +44,11 @@ footer{color:var(--dim);font-size:11.5px;margin-top:32px;text-align:center}
 <div class="panel"><div class="controls">
 <div class="field"><label>Start balance</label><input id="start" type="number" value="10000" step="1000"></div>
 <div class="field"><label>Risk per entry %</label><input id="risk" type="number" value="2" step="0.5" min="0.25" max="10"></div>
-<div class="field"><label>Data from</label><select id="since">
-<option value="2024-11" selected>Nov 2024 (recent)</option>
-<option value="2024-01">Jan 2024</option>
-<option value="2023-01">Jan 2023</option>
-<option value="2022-01">Jan 2022</option>
-<option value="2020-01">Jan 2020 (full)</option>
-</select></div>
+<div class="field"><label>Slippage (ticks)</label><input id="slip" type="number" value="4" min="0" max="40" style="width:56px"></div>
 <div class="checks"><label><input id="d2b" type="checkbox" checked> FAST</label><label><input id="al" type="checkbox" checked> SMOOTH</label></div>
-<button id="go">Simulate</button>
 </div></div>
 
+<div class="controls" style="margin-bottom:16px"><div class="field"><label>Data from</label><input id="since" type="date" value="2024-11-01" min="2020-01-01" max="2026-11-19"></div><button type="button" onclick="worstStart()" style="align-self:flex-end;padding:8px 14px;font-size:13px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;cursor:pointer">Start on worst day</button></div>
 <div class="grid" id="stats"></div>
 
 <h2>Equity curve</h2><div class="panel"><canvas id="eq" height="240"></canvas></div>
@@ -65,7 +59,7 @@ footer{color:var(--dim);font-size:11.5px;margin-top:32px;text-align:center}
 </div><div>
 <h2>Assumptions</h2><div class="panel"><ul>
 <li>Micros sizing: risk % of balance per entry, whole contracts</li>
-<li>Costs: 4 ticks slippage + $4 round-turn commission per trade</li>
+<li>Costs: configurable slippage (default 4 ticks) + commission per trade</li>
 <li>Daily re-sizing (compounding); balance floors at 1 micro</li>
 <li>Sequenced real trade outcomes — not randomized</li>
 </ul></div>
@@ -78,20 +72,20 @@ footer{color:var(--dim);font-size:11.5px;margin-top:32px;text-align:center}
 const D=JSON.parse(document.getElementById('d').textContent);
 const DAYS=Object.keys(D.days).sort(),COMM=4;
 function isowk(dt){const t=new Date(dt+'T12:00:00Z'),d=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth(),t.getUTCDate())),dn=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-dn+3);const th=new Date(Date.UTC(d.getUTCFullYear(),0,4)),dn2=(th.getUTCDay()+6)%7;th.setUTCDate(th.getUTCDate()-dn2+3);return d.getUTCFullYear()+'-W'+String(1+Math.round((d-th)/6048e5)).padStart(2,'0')}
-function simulate(startB,riskPct,useD2B,useAl,since){
- let bal=startB,lo=bal,pk=bal,mdd=0,mddPk=startB;const wk={},wkStart={},mo={},dayPnl={};
+function simulate(startB,riskPct,useD2B,useAl,since,slipT){
+ let bal=startB,lo=bal,pk=bal,mdd=0,mddPk=startB,pSum=0,pN=0;const wk={},wkStart={},mo={},dayPnl={};
  for(const dt of DAYS){
   if(dt<since)continue;let p=0;
   for(const n of['DAMN2B','ALEPH']){
    if(n==='DAMN2B'&&!useD2B)continue;if(n==='ALEPH'&&!useAl)continue;
    const sl=D.sl[n],rm=sl*0.5,q=Math.max(1,Math.floor(bal*(riskPct/100)/rm)),R=rm*q;
-   const rs=D.days[dt][n]||[],ct=4/sl+COMM/(sl*5);
+   const rs=D.days[dt][n]||[],ct=slipT/sl+COMM/(sl*5);
    p+=(rs.reduce((a,b)=>a+b[2],0)-ct*rs.length)*R;
   }
-  bal+=p;lo=Math.min(lo,bal);pk=Math.max(pk,bal);if(pk-bal>mdd){mdd=pk-bal;mddPk=pk}
+  bal+=p;if(bal-p>0){pSum+=p/(bal-p);pN++}lo=Math.min(lo,bal);pk=Math.max(pk,bal);if(pk-bal>mdd){mdd=pk-bal;mddPk=pk}
   dayPnl[dt]=p;const w=isowk(dt);if(!(w in wkStart))wkStart[w]=bal-p;wk[w]=(wk[w]||0)+p;mo[dt.slice(0,7)]=(mo[dt.slice(0,7)]||0)+p;
  }
- return{bal,lo,mdd,mddPk,wk,wkStart,mo,dayPnl};
+ return{bal,lo,mdd,mddPk,wk,wkStart,mo,dayPnl,avgD:pN?pSum/pN*100:0};
 }
 function chart(id,vals,isBar,startB){
  const cv=document.getElementById(id),ctx=cv.getContext('2d');
@@ -128,16 +122,27 @@ function wkPaint(cv){
   ctx.fillStyle='#e8eaf0';ctx.fillText(label,bx+10,32);
  }
 }
+function worstStart(){
+ const useD=document.getElementById('d2b').checked,useA=document.getElementById('al').checked;
+ let worst=null,wv=0;
+ for(const dt of DAYS){
+  let p=0;const v=D.days[dt];
+  if(useD)for(const t of(v.DAMN2B||[]))p+=t[2];
+  if(useA)for(const t of(v.ALEPH||[]))p+=t[2];
+  if(p<wv){wv=p;worst=dt;}
+ }
+ if(worst){document.getElementById('since').value=worst;run();}
+}
 function run(){
  const start=parseFloat(document.getElementById('start').value)||10000;
  const risk=parseFloat(document.getElementById('risk').value)||2;
  const since=document.getElementById('since').value;
- const r=simulate(start,risk,document.getElementById('d2b').checked,document.getElementById('al').checked,since);
+ const r=simulate(start,risk,document.getElementById('d2b').checked,document.getElementById('al').checked,since,parseFloat(document.getElementById('slip').value)||0);
  const wkK=Object.keys(r.wk).sort(),moK=Object.keys(r.mo).sort(),dK=Object.keys(r.dayPnl).sort();
  const wkV=wkK.map(k=>r.wk[k]),moV=moK.map(k=>r.mo[k]),dV=dK.map(k=>r.dayPnl[k]);
  const cum=[];let c=start;wkV.forEach(v=>{c+=v;cum.push(c)});
  const nD=dV.filter(x=>x<0).length,nW=wkV.filter(x=>x<0).length,nM=moV.filter(x=>x<0).length;
- const stats=[['Final','$'+Math.round(r.bal).toLocaleString()],['Return',((r.bal/start-1)*100).toFixed(0)+'%'],
+ const stats=[['Final','$'+Math.round(r.bal).toLocaleString()],['Avg daily return',(r.avgD>=0?'+':'')+r.avgD.toFixed(2)+'%'],['Total return',((r.bal/start-1)*100).toFixed(0)+'%'],
   ['Min balance','$'+Math.round(r.lo).toLocaleString()],['Max drawdown','-'+(r.mdd/r.mddPk*100).toFixed(1)+'%'],
   ['Red days',nD+' / '+dV.length],['Red weeks',nW+' / '+wkV.length],['Red months',nM+' / '+moV.length]];
  document.getElementById('stats').innerHTML=stats.map(s=>'<div class="card"><div class="v">'+s[1]+'</div><div class="l">'+s[0]+'</div></div>').join('');
@@ -148,8 +153,8 @@ function run(){
  wkPaint(cv);
  let mb=start;document.getElementById('mtbl').innerHTML='<tr><th>Month</th><th>Return</th></tr>'+moK.map(k=>{const pct=r.mo[k]/mb*100;mb+=r.mo[k];return '<tr><td>'+k+'</td><td class="'+(pct<0?'neg':'pos')+'">'+(pct>=0?'+':'')+pct.toFixed(1)+'%</td></tr>'}).join('');
 }
-document.getElementById('go').onclick=run;
+
 document.getElementById('wkmode').onchange=run;document.getElementById('since').onchange=run;
-document.getElementById('d2b').onchange=run;document.getElementById('al').onchange=run;
+document.getElementById('d2b').onchange=run;document.getElementById('risk').onchange=run;document.getElementById('slip').onchange=run;document.getElementById('start').onchange=run;document.getElementById('al').onchange=run;
 run();
 </script></body></html>
