@@ -193,7 +193,7 @@ function run(){
  ['Breached',breaches,1],['Peak accounts',maxAccts+' / '+(f.cap||'—'),1],
  ['Live now',accounts.length,1],['Open equity','$'+Math.round(openEq).toLocaleString(),openEq]];
  document.getElementById('cards').innerHTML=stats.map(s=>'<div class="card"><b>'+s[0]+'</b><span class="'+(s[2]<0?'neg':'pos')+'">'+s[1]+'</span></div>').join('');
- document.getElementById('log').innerHTML='<tr><th>Date</th><th>Event</th></tr>'+log.slice(-400).map(l=>'<tr><td>'+l[0]+'</td><td>'+l[1]+'</td></tr>').join('');
+ document.getElementById('log').innerHTML='<tr><th>Date</th><th>Event</th></tr>'+log.map(l=>'<tr><td>'+l[0]+'</td><td>'+l[1]+'</td></tr>').join('');
  const moK=Object.keys(mo).sort();
  document.getElementById('mtbl').innerHTML='<tr><th>Month</th><th>Net</th></tr>'+moK.map(k=>'<tr><td>'+k+'</td><td class="'+(mo[k]<0?'neg':'pos')+'">'+(mo[k]>=0?'+':'')+Math.round(mo[k]).toLocaleString()+'</td></tr>').join('');
  draw('eq',netCurve,Math.min(0,...netCurve),Math.max(0,...netCurve),days);
