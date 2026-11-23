@@ -58,7 +58,7 @@ footer{color:var(--dim);font-size:11.5px;margin-top:32px;text-align:center}
 <div class="grid" id="stats"></div>
 
 <h2>Equity curve</h2><div class="panel"><canvas id="eq" height="240"></canvas></div>
-<h2>Weekly P&amp;L</h2><div class="panel"><canvas id="wk" height="170"></canvas></div>
+<h2>Weekly P&amp;L <select id="wkmode" style="font-size:12px;padding:3px 6px;margin-left:8px"><option value="usd">$</option><option value="pct">%</option></select></h2><div class="panel"><canvas id="wk" height="170"></canvas></div>
 
 <div class="cols"><div>
 <h2>Monthly P&amp;L</h2><div class="scroll"><table id="mtbl"></table></div>
@@ -79,7 +79,7 @@ const D=JSON.parse(document.getElementById('d').textContent);
 const DAYS=Object.keys(D.days).sort(),COMM=4;
 function isowk(dt){const t=new Date(dt+'T12:00:00Z'),d=new Date(Date.UTC(t.getUTCFullYear(),t.getUTCMonth(),t.getUTCDate())),dn=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-dn+3);const th=new Date(Date.UTC(d.getUTCFullYear(),0,4)),dn2=(th.getUTCDay()+6)%7;th.setUTCDate(th.getUTCDate()-dn2+3);return d.getUTCFullYear()+'-W'+String(1+Math.round((d-th)/6048e5)).padStart(2,'0')}
 function simulate(startB,riskPct,useD2B,useAl,since){
- let bal=startB,lo=bal,pk=bal,mdd=0,mddPk=startB;const wk={},mo={},dayPnl={};
+ let bal=startB,lo=bal,pk=bal,mdd=0,mddPk=startB;const wk={},wkStart={},mo={},dayPnl={};
  for(const dt of DAYS){
   if(dt<since)continue;let p=0;
   for(const n of['DAMN2B','ALEPH']){
@@ -89,9 +89,9 @@ function simulate(startB,riskPct,useD2B,useAl,since){
    p+=(rs.reduce((a,b)=>a+b,0)-ct*rs.length)*R;
   }
   bal+=p;lo=Math.min(lo,bal);pk=Math.max(pk,bal);if(pk-bal>mdd){mdd=pk-bal;mddPk=pk}
-  dayPnl[dt]=p;const w=isowk(dt);wk[w]=(wk[w]||0)+p;mo[dt.slice(0,7)]=(mo[dt.slice(0,7)]||0)+p;
+  dayPnl[dt]=p;const w=isowk(dt);if(!(w in wkStart))wkStart[w]=bal-p;wk[w]=(wk[w]||0)+p;mo[dt.slice(0,7)]=(mo[dt.slice(0,7)]||0)+p;
  }
- return{bal,lo,mdd,mddPk,wk,mo,dayPnl};
+ return{bal,lo,mdd,mddPk,wk,wkStart,mo,dayPnl};
 }
 function chart(id,vals,isBar,startB){
  const cv=document.getElementById(id),ctx=cv.getContext('2d');
@@ -110,6 +110,24 @@ function chart(id,vals,isBar,startB){
   ctx.fillStyle='rgba(240,101,90,.8)';ctx.font='17px Inter';ctx.fillText('start',12,y(startB)-8);
  }
 }
+function wkPaint(cv){
+ const ctx=cv.getContext('2d'),v=cv._v,k=cv._k,pct=cv._pct;
+ const W=cv.width=cv.offsetWidth*2,H=cv.height=cv.offsetHeight*2;ctx.clearRect(0,0,W,H);
+ if(!v.length||Math.min.apply(null,v)===Math.max.apply(null,v))return;
+ const mn=Math.min(0,Math.min.apply(null,v)),mx=Math.max.apply(null,v),pad=14;
+ const y=vv=>H-pad-(vv-mn)/(mx-mn)*(H-2*pad),xw=W/v.length;
+ ctx.strokeStyle='#232a3a';ctx.beginPath();ctx.moveTo(0,y(0));ctx.lineTo(W,y(0));ctx.stroke();
+ v.forEach((vv,i)=>{ctx.fillStyle=vv>=0?'#34c98e':'#f0655a';ctx.fillRect(i*xw,y(Math.max(0,vv)),Math.max(1,xw*0.75),Math.abs(y(vv)-y(0)));});
+ if(cv._h!=null&&v[cv._h]!=null){
+  const i=cv._h,px=i*xw+xw/2;
+  ctx.strokeStyle='#7db4ff';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(px,0);ctx.lineTo(px,H);ctx.stroke();ctx.setLineDash([]);
+  const label=k[i]+'  '+(v[i]>=0?'+':'')+(pct?v[i].toFixed(1)+'%':'$'+Math.round(v[i]).toLocaleString());
+  ctx.font='600 20px Inter';const tw=ctx.measureText(label).width;
+  const bx=Math.min(Math.max(px-tw/2-10,4),W-tw-24);
+  ctx.fillStyle='#11151f';ctx.strokeStyle='#2a3348';ctx.beginPath();ctx.roundRect(bx,8,tw+20,34,8);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#e8eaf0';ctx.fillText(label,bx+10,32);
+ }
+}
 function run(){
  const start=parseFloat(document.getElementById('start').value)||10000;
  const risk=parseFloat(document.getElementById('risk').value)||2;
@@ -123,11 +141,15 @@ function run(){
   ['Min balance','$'+Math.round(r.lo).toLocaleString()],['Max drawdown','-'+(r.mdd/r.mddPk*100).toFixed(1)+'%'],
   ['Red days',nD+' / '+dV.length],['Red weeks',nW+' / '+wkV.length],['Red months',nM+' / '+moV.length]];
  document.getElementById('stats').innerHTML=stats.map(s=>'<div class="card"><div class="v">'+s[1]+'</div><div class="l">'+s[0]+'</div></div>').join('');
- chart('eq',cum,false,start);chart('wk',wkV,true,start);
+ chart('eq',cum,false,start);
+ const pct=document.getElementById('wkmode').value==='pct';
+ const wkD=pct?wkV.map((v,i)=>v/r.wkStart[wkK[i]]*100):wkV;
+ const cv=document.getElementById('wk');cv._v=wkD;cv._k=wkK;cv._pct=pct;cv.onmousemove=e=>{cv._h=Math.round(e.offsetX/cv.offsetWidth*(wkD.length-1));wkPaint(cv);};cv.onmouseleave=()=>{cv._h=null;wkPaint(cv);};
+ wkPaint(cv);
  let mb=start;document.getElementById('mtbl').innerHTML='<tr><th>Month</th><th>Return</th></tr>'+moK.map(k=>{const pct=r.mo[k]/mb*100;mb+=r.mo[k];return '<tr><td>'+k+'</td><td class="'+(pct<0?'neg':'pos')+'">'+(pct>=0?'+':'')+pct.toFixed(1)+'%</td></tr>'}).join('');
 }
 document.getElementById('go').onclick=run;
-document.getElementById('since').onchange=run;
+document.getElementById('wkmode').onchange=run;document.getElementById('since').onchange=run;
 document.getElementById('d2b').onchange=run;document.getElementById('al').onchange=run;
 run();
 </script></body></html>
