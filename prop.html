@@ -44,7 +44,7 @@ h2{font-size:14px;font-weight:700;margin-bottom:12px}
 <option value="LUCID">Lucid 50K</option>
 <option value="TOPONE">Top One 150K Instant</option>
 </select></div>
-<div class="field"><label>Eval</label><div class="checks"><input id="ecq" type="number" min="1" max="70" value="6" style="width:56px"><select id="eunit" style="padding:8px 6px"><option value="1">minis</option><option value="10">micros</option></select></div></div>
+<div class="field" id="evalfield"><label>Eval</label><div class="checks"><input id="ecq" type="number" min="1" max="70" value="6" style="width:56px"><select id="eunit" style="padding:8px 6px"><option value="1">minis</option><option value="10">micros</option></select></div></div>
 <div class="field"><label>Funded</label><div class="checks"><input id="cq" type="number" min="1" max="70" value="2" style="width:56px"><select id="funit" style="padding:8px 6px"><option value="1">minis</option><option value="10">micros</option></select></div></div>
 <div class="field"><label>Signals</label><div class="checks"><label><input id="d2b" type="checkbox" checked> FAST</label><label><input id="al" type="checkbox" checked> SMOOTH</label></div></div>
 <div class="field"><label>Reinvest payouts</label><div class="checks"><label><input id="ri" type="checkbox"> buy more accounts</label></div></div>
@@ -90,6 +90,9 @@ function run(){
  document.getElementById('prodname').textContent=f.product||'';
  document.getElementById('prodlinks').innerHTML=(f.link?'Source: <a href="'+f.link+'" target="_blank">'+f.link.replace('https://','')+'</a>'+(f.link2?' &middot; <a href="'+f.link2+'" target="_blank">'+f.link2.replace('https://','')+'</a>':''):'');
  document.getElementById('fullrules').innerHTML=(f.review||[]).map(x=>'<li>'+x+'</li>').join('');
+ const ef=document.getElementById('evalfield');
+ ef.style.opacity=f.instant?0.35:1;
+ ef.querySelectorAll('input,select').forEach(e=>e.disabled=!!f.instant);
  const days=Object.keys(DATA.days).filter(d=>d.slice(0,7)>=since).sort();
  const buyCost=f.instant?f.act:f.evalCost;
  let costs=buyCost,oop=buyCost,cash=0,payouts=0,evals=f.instant?0:1,passes=0,breaches=0,maxAccts=1;
